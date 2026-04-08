@@ -105,6 +105,10 @@ export async function fetchAllCalls(hours: number = 24): Promise<AircallCall[]> 
   const to   = Math.floor(Date.now() / 1000)
   const from = to - hours * 3600
 
+  // Estimate max pages: ~200 calls/day, 50 per page, plus buffer
+  const estimatedDays = hours / 24
+  const maxPages = Math.min(Math.ceil((estimatedDays * 300) / 50), 500)
+
   const calls: AircallCall[] = []
   let page = 1
   while (true) {
@@ -112,7 +116,10 @@ export async function fetchAllCalls(hours: number = 24): Promise<AircallCall[]> 
     calls.push(...batch)
     if (batch.length < 50) break
     page++
-    if (page > 20) break // safety cap
+    if (page > maxPages) {
+      console.warn(`[aircall] hit page cap (${maxPages}) at ${calls.length} calls`)
+      break
+    }
   }
   return calls
 }
