@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchAgentReport, fetchInactiveAgents, fetchSummaryStats, fetchSessionStats } from '@/lib/queries'
 import { aircallEnabled, fetchAircallUsers, fetchAllCalls, aggregateByAgent, analyzeTranscript } from '@/lib/aircall'
+import { getCache, setCache } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
+
+// Cache TTL: 60 seconds for 24h window, 5 min for longer windows
+function getTTL(hours: number) { return hours <= 48 ? 60 : 300 }
 
 export async function GET(req: NextRequest) {
   const hours = Number(req.nextUrl.searchParams.get('hours') ?? '24')
   if (isNaN(hours) || hours < 1 || hours > 720) {
     return NextResponse.json({ error: 'Invalid hours parameter (1-720)' }, { status: 400 })
+  }
+
+  const cacheKey = `report:${hours}`
+  const cached = getCache<object>(cacheKey)
+  if (cached) {
+    return NextResponse.json({ ...cached, cached: true })
   }
 
   try {
@@ -62,7 +72,9 @@ export async function GET(req: NextRequest) {
       aircallData = { enabled: false }
     }
 
-    return NextResponse.json({ agents, inactive, summary, sessions, aircall: aircallData, hours })
+    const result = { agents, inactive, summary, sessions, aircall: aircallData, hours }
+    setCache(cacheKey, result, getTTL(hours))
+    return NextResponse.json({ ...result, cached: false })
   } catch (err) {
     console.error('Report error:', err)
     return NextResponse.json({ error: 'Internal server error', detail: String(err) }, { status: 500 })
