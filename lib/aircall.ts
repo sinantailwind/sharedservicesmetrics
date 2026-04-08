@@ -9,7 +9,7 @@ export interface AircallUser {
 export interface AircallCall {
   id: number
   direction: 'inbound' | 'outbound'
-  status: 'done' | 'missed' | 'voicemail'
+  status: 'done' | 'answered' | 'missed' | 'voicemail'
   started_at: number
   answered_at: number | null
   ended_at: number | null

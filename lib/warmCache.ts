@@ -2,7 +2,7 @@
  * Warms the report cache on server startup and then every 60 seconds.
  * Import this once from instrumentation.ts so it runs in the Node.js process.
  */
-import { fetchAgentReport, fetchInactiveAgents, fetchSummaryStats, fetchSessionStats } from './queries'
+import { fetchAgentReport, fetchInactiveAgents, fetchSummaryStats, fetchSessionStats, fetchTeamPerformance, fetchTagBreakdown } from './queries'
 import { setCache } from './cache'
 import { config } from './config'
 
@@ -10,14 +10,16 @@ const WINDOWS = [24, 48, 168, 720]
 
 async function refreshWindow(hours: number) {
   try {
-    const [agents, inactive, summary, sessions] = await Promise.all([
+    const [agents, inactive, summary, sessions, teams, tags] = await Promise.all([
       fetchAgentReport(hours),
       fetchInactiveAgents(hours),
       fetchSummaryStats(hours),
       fetchSessionStats(hours),
+      fetchTeamPerformance(hours),
+      fetchTagBreakdown(hours),
     ])
     const ttl = hours <= 48 ? config.cache.ttlSeconds24h : config.cache.ttlSecondsLong
-    setCache(`report:db:${hours}`, { agents, inactive, summary, sessions }, ttl + 30)
+    setCache(`report:db:${hours}`, { agents, inactive, summary, sessions, teams, tags }, ttl + 30)
     console.log(`[cache] warmed ${hours}h window — ${agents.length} agents`)
   } catch (e) {
     console.error(`[cache] failed to warm ${hours}h window:`, e)

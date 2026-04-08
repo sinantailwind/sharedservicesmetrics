@@ -4,17 +4,20 @@ import AgentTable from './AgentTable'
 import InactiveAgents from './InactiveAgents'
 import AircallPanel from './AircallPanel'
 import SessionActivity from './SessionActivity'
+import TeamsTagsPanel from './TeamsTagsPanel'
 import { TopAgentsChart, ComplexityScatterChart } from './Charts'
-import type { AgentStats, InactiveAgent, AgentSessionStats } from '@/lib/queries'
+import type { AgentStats, InactiveAgent, AgentSessionStats, TeamPerformance, TagStat } from '@/lib/queries'
 import clsx from 'clsx'
 
-type Tab = 'leaderboard' | 'inactive' | 'sessions' | 'aircall'
+type Tab = 'leaderboard' | 'inactive' | 'sessions' | 'aircall' | 'teams'
 
 interface ReportData {
   agents: AgentStats[]
   inactive: InactiveAgent[]
   summary: { total_messages: number; active_agents: number; total_conversations: number; avg_reply_length: number }
   sessions: AgentSessionStats[]
+  teams: TeamPerformance[]
+  tags: TagStat[]
   aircall: {
     enabled: boolean
     error?: string
@@ -142,6 +145,7 @@ export default function Dashboard() {
               { id: 'leaderboard', label: `Leaderboard (${data?.agents.length ?? '…'})` },
               { id: 'sessions',    label: `Active Hours` },
               { id: 'inactive',    label: `Inactive (${data?.inactive.length ?? '…'})` },
+              { id: 'teams',       label: `Teams & Tags` },
               { id: 'aircall',     label: `Aircall${aircallEnabled ? '' : ' · off'}` },
             ] as const).map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
@@ -168,6 +172,13 @@ export default function Dashboard() {
 
           {data && tab === 'inactive' && (
             <InactiveAgents agents={data.inactive} />
+          )}
+
+          {data && tab === 'teams' && (
+            <TeamsTagsPanel
+              teams={data.teams ?? []}
+              tags={data.tags ?? []}
+            />
           )}
 
           {data && tab === 'aircall' && (

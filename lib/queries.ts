@@ -271,6 +271,87 @@ export async function fetchSessionStats(hours: number = 24): Promise<AgentSessio
   }))
 }
 
+export interface TeamPerformance {
+  team_name: string
+  active_agents: number
+  total_messages: number
+  unique_conversations: number
+  avg_reply_length_chars: number
+  high_complexity_convos: number
+  avg_msgs_per_convo: number
+}
+
+export interface TagStat {
+  tag_name: string
+  conversation_count: number
+  agent_count: number
+  message_count: number
+}
+
+export async function fetchTeamPerformance(hours: number = 24): Promise<TeamPerformance[]> {
+  const interval = `${hours} hours`
+  const rows = await query<Record<string, unknown>>(`
+    SELECT
+      COALESCE(t."name", 'Unassigned')                                     AS team_name,
+      COUNT(DISTINCT eu.id)                                                 AS active_agents,
+      COUNT(*)                                                              AS total_messages,
+      COUNT(DISTINCT cm."conversationId")                                   AS unique_conversations,
+      COALESCE(ROUND(AVG(LENGTH(cm."messageBody"))::numeric, 0), 0)        AS avg_reply_length_chars,
+      COUNT(DISTINCT CASE WHEN gd.guest_count >= 10 THEN cm."conversationId" END) AS high_complexity_convos,
+      ROUND((COUNT(*)::numeric / NULLIF(COUNT(DISTINCT cm."conversationId"), 0)), 2) AS avg_msgs_per_convo
+    FROM conversation_messages cm
+    JOIN extenteam_users eu ON eu.id = cm."userId"
+    LEFT JOIN teams t ON t.id = eu."teamId"
+    LEFT JOIN (
+      SELECT "conversationId", COUNT(*) AS guest_count
+      FROM conversation_messages
+      WHERE "conversationMessageType" = 'GUEST' AND "deletedAt" IS NULL
+      GROUP BY "conversationId"
+    ) gd ON gd."conversationId" = cm."conversationId"
+    WHERE cm."conversationMessageType" = 'AGENT'
+      AND cm."messageCreatedAt" >= NOW() - INTERVAL '${interval}'
+      AND cm."deletedAt" IS NULL
+    GROUP BY COALESCE(t."name", 'Unassigned')
+    ORDER BY total_messages DESC
+  `)
+  return rows.map(r => ({
+    team_name:             String(r.team_name),
+    active_agents:         Number(r.active_agents),
+    total_messages:        Number(r.total_messages),
+    unique_conversations:  Number(r.unique_conversations),
+    avg_reply_length_chars: Number(r.avg_reply_length_chars),
+    high_complexity_convos: Number(r.high_complexity_convos),
+    avg_msgs_per_convo:    Number(r.avg_msgs_per_convo),
+  }))
+}
+
+export async function fetchTagBreakdown(hours: number = 24): Promise<TagStat[]> {
+  const interval = `${hours} hours`
+  const rows = await query<Record<string, unknown>>(`
+    SELECT
+      ct."tagValue"                                                         AS tag_name,
+      COUNT(DISTINCT ct."conversationId")                                   AS conversation_count,
+      COUNT(DISTINCT cm."userId")                                           AS agent_count,
+      COUNT(DISTINCT cm.id)                                                 AS message_count
+    FROM conversation_tags ct
+    JOIN conversation_messages cm ON cm."conversationId" = ct."conversationId"
+    WHERE cm."conversationMessageType" = 'AGENT'
+      AND cm."messageCreatedAt" >= NOW() - INTERVAL '${interval}'
+      AND cm."deletedAt" IS NULL
+      AND ct."tagValue" IS NOT NULL
+      AND ct."tagValue" != ''
+    GROUP BY ct."tagValue"
+    ORDER BY conversation_count DESC
+    LIMIT 25
+  `)
+  return rows.map(r => ({
+    tag_name:           String(r.tag_name),
+    conversation_count: Number(r.conversation_count),
+    agent_count:        Number(r.agent_count),
+    message_count:      Number(r.message_count),
+  }))
+}
+
 export async function fetchSummaryStats(hours: number = 24): Promise<{
   total_messages: number
   active_agents: number

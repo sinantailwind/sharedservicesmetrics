@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchAgentReport, fetchInactiveAgents, fetchSummaryStats, fetchSessionStats } from '@/lib/queries'
+import { fetchAgentReport, fetchInactiveAgents, fetchSummaryStats, fetchSessionStats, fetchTeamPerformance, fetchTagBreakdown } from '@/lib/queries'
 import { aircallEnabled, fetchAircallUsers, fetchAllCalls, aggregateByAgent, analyzeTranscript } from '@/lib/aircall'
 import { getCache, setCache } from '@/lib/cache'
 
@@ -51,18 +51,20 @@ export async function GET(req: NextRequest) {
   try {
     // DB data: served from cache if available, otherwise fetch and cache
     const dbCacheKey = `report:db:${hours}`
-    let dbData = getCache<{ agents: unknown; inactive: unknown; summary: unknown; sessions: unknown }>(dbCacheKey)
+    let dbData = getCache<{ agents: unknown; inactive: unknown; summary: unknown; sessions: unknown; teams: unknown; tags: unknown }>(dbCacheKey)
     let cached = true
 
     if (!dbData) {
       cached = false
-      const [agents, inactive, summary, sessions] = await Promise.all([
+      const [agents, inactive, summary, sessions, teams, tags] = await Promise.all([
         fetchAgentReport(hours),
         fetchInactiveAgents(hours),
         fetchSummaryStats(hours),
         fetchSessionStats(hours),
+        fetchTeamPerformance(hours),
+        fetchTagBreakdown(hours),
       ])
-      dbData = { agents, inactive, summary, sessions }
+      dbData = { agents, inactive, summary, sessions, teams, tags }
       setCache(dbCacheKey, dbData, getTTL(hours))
     }
 
