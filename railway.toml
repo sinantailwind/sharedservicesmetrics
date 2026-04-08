@@ -2,11 +2,6 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "node .next/standalone/server.js"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+startCommand = "next start -p ${PORT:-3000}"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-
-[[services]]
-name = "agent-dashboard"
