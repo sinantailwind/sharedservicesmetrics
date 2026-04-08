@@ -153,12 +153,14 @@ export function aggregateByAgent(
     if (call.direction === 'inbound') s.inbound_calls++
     else s.outbound_calls++
 
-    if (call.status === 'done' && call.answered_duration > 0) {
+    const isAnswered = call.status === 'answered' || (call.answered_at != null)
+    const talkTime = call.duration ?? 0
+
+    if (isAnswered && talkTime > 0) {
       s.answered_calls++
-      s.total_talk_time_seconds += call.answered_duration
-      s.longest_call_seconds = Math.max(s.longest_call_seconds, call.answered_duration)
-      s.shortest_call_seconds = Math.min(s.shortest_call_seconds, call.answered_duration)
-      // Wait time = answered_at - started_at (seconds before pickup)
+      s.total_talk_time_seconds += talkTime
+      s.longest_call_seconds = Math.max(s.longest_call_seconds, talkTime)
+      s.shortest_call_seconds = Math.min(s.shortest_call_seconds, talkTime)
       if (call.answered_at && call.started_at) {
         const wait = call.answered_at - call.started_at
         if (wait > 0) waitTimes.get(email)!.push(wait)
