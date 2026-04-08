@@ -45,9 +45,16 @@ export interface AircallAgentStats {
   total_calls: number
   answered_calls: number
   missed_calls: number
+  inbound_calls: number
+  outbound_calls: number
+  pickup_rate: number          // 0-100 percentage
+  missed_call_rate: number     // 0-100 percentage
   total_talk_time_seconds: number
   avg_handle_time_seconds: number
   longest_call_seconds: number
+  shortest_call_seconds: number
+  total_hold_time_seconds: number
+  avg_wait_time_seconds: number  // avg time before pickup on inbound answered
 }
 
 export interface TranscriptFinding {
@@ -117,6 +124,8 @@ export function aggregateByAgent(
   const emailMap = new Map(aircallUsers.map(u => [u.email.toLowerCase(), u.id]))
   const byEmail = new Map<string, AircallAgentStats>()
 
+  const waitTimes = new Map<string, number[]>()
+
   for (const call of calls) {
     if (!call.user?.email) continue
     const email = call.user.email.toLowerCase()
@@ -126,26 +135,48 @@ export function aggregateByAgent(
         total_calls: 0,
         answered_calls: 0,
         missed_calls: 0,
+        inbound_calls: 0,
+        outbound_calls: 0,
+        pickup_rate: 0,
+        missed_call_rate: 0,
         total_talk_time_seconds: 0,
         avg_handle_time_seconds: 0,
         longest_call_seconds: 0,
+        shortest_call_seconds: Infinity,
+        total_hold_time_seconds: 0,
+        avg_wait_time_seconds: 0,
       })
+      waitTimes.set(email, [])
     }
     const s = byEmail.get(email)!
     s.total_calls++
+    if (call.direction === 'inbound') s.inbound_calls++
+    else s.outbound_calls++
+
     if (call.status === 'done' && call.answered_duration > 0) {
       s.answered_calls++
       s.total_talk_time_seconds += call.answered_duration
       s.longest_call_seconds = Math.max(s.longest_call_seconds, call.answered_duration)
+      s.shortest_call_seconds = Math.min(s.shortest_call_seconds, call.answered_duration)
+      // Wait time = answered_at - started_at (seconds before pickup)
+      if (call.answered_at && call.started_at) {
+        const wait = call.answered_at - call.started_at
+        if (wait > 0) waitTimes.get(email)!.push(wait)
+      }
     } else {
       s.missed_calls++
     }
   }
 
   for (const s of Array.from(byEmail.values())) {
+    if (s.shortest_call_seconds === Infinity) s.shortest_call_seconds = 0
     s.avg_handle_time_seconds = s.answered_calls > 0
       ? Math.round(s.total_talk_time_seconds / s.answered_calls)
       : 0
+    s.pickup_rate = s.total_calls > 0 ? Math.round((s.answered_calls / s.total_calls) * 100) : 0
+    s.missed_call_rate = s.total_calls > 0 ? Math.round((s.missed_calls / s.total_calls) * 100) : 0
+    const wt = waitTimes.get(Array.from(byEmail.entries()).find(([, v]) => v === s)?.[0] ?? '') ?? []
+    s.avg_wait_time_seconds = wt.length > 0 ? Math.round(wt.reduce((a, b) => a + b, 0) / wt.length) : 0
   }
 
   return byEmail

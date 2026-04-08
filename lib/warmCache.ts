@@ -17,7 +17,7 @@ async function refreshWindow(hours: number) {
       fetchSessionStats(hours),
     ])
     const ttl = hours <= 48 ? config.cache.ttlSeconds24h : config.cache.ttlSecondsLong
-    setCache(`report:${hours}`, { agents, inactive, summary, sessions, aircall: { enabled: false }, hours }, ttl + 30)
+    setCache(`report:db:${hours}`, { agents, inactive, summary, sessions }, ttl + 30)
     console.log(`[cache] warmed ${hours}h window — ${agents.length} agents`)
   } catch (e) {
     console.error(`[cache] failed to warm ${hours}h window:`, e)

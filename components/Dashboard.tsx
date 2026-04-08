@@ -175,6 +175,7 @@ export default function Dashboard() {
               enabled={aircallEnabled}
               error={data.aircall.error}
               summary={data.aircall.summary as never}
+              agents={data.aircall.agents as never}
               transcriptFindings={data.aircall.transcript_findings as never}
             />
           )}
